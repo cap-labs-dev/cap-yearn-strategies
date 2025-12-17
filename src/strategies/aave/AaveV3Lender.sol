@@ -6,12 +6,12 @@ import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IAToken} from "./interfaces/Aave/V3/IAtoken.sol";
-import {IStakedAave} from "./interfaces/Aave/V3/IStakedAave.sol";
-import {IPool} from "./interfaces/Aave/V3/IPool.sol";
-import {IRewardsController} from "./interfaces/Aave/V3/IRewardsController.sol";
-import {IProtocolDataProvider} from "./interfaces/Aave/V3/IProtocolDataProvider.sol";
-import {IMerklClaimer} from "./interfaces/merkl/IMerklClaimer.sol";
+import {IAToken} from "../../interfaces/Aave/V3/IAtoken.sol";
+import {IStakedAave} from "../../interfaces/Aave/V3/IStakedAave.sol";
+import {IPool} from "../../interfaces/Aave/V3/IPool.sol";
+import {IRewardsController} from "../../interfaces/Aave/V3/IRewardsController.sol";
+import {IProtocolDataProvider} from "../../interfaces/Aave/V3/IProtocolDataProvider.sol";
+import {IMerklClaimer} from "../../interfaces/merkl/IMerklClaimer.sol";
 
 // Swappers
 import {UniswapV3Swapper} from "@periphery/swappers/UniswapV3Swapper.sol";

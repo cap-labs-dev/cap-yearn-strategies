@@ -2,7 +2,7 @@
 pragma solidity >=0.8.18;
 
 import "forge-std/Script.sol";
-import {AaveV3LenderFactory} from "../src/AaveV3LenderFactory.sol";
+import {AaveV3LenderFactory} from "../src/strategies/aave/AaveV3LenderFactory.sol";
 
 contract Deploy is Script {
     function run() external {

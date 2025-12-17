@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import "./ExtendedTest.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IStrategyInterface} from "../../../src/interfaces/IStrategyInterface.sol";
-import {AaveV3LenderFactory} from "../../../src/AaveV3LenderFactory.sol";
+import {AaveV3LenderFactory} from "../../../src/strategies/aave/AaveV3LenderFactory.sol";
 import {StrategyAprOracle} from "../../../src/periphery/StrategyAprOracle.sol";
 
 contract Setup is ExtendedTest {

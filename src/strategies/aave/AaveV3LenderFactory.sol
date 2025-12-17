@@ -2,9 +2,9 @@
 pragma solidity 0.8.18;
 
 import {AaveV3Lender, ERC20} from "./AaveV3Lender.sol";
-import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
-import {IVaultInterface} from "./interfaces/IVaultInterface.sol";
-import {IRegistry} from "./interfaces/IRegistry.sol";
+import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
+import {IVaultInterface} from "../../interfaces/IVaultInterface.sol";
+import {IRegistry} from "../../interfaces/IRegistry.sol";
 
 contract AaveV3LenderFactory {
     /// @notice Revert message for when a strategy has already been deployed.

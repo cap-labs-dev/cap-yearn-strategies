@@ -2,7 +2,7 @@
 pragma solidity >=0.8.18;
 
 import "forge-std/Script.sol";
-import {Holder} from "../src/Holder.sol";
+import {Holder} from "../src/strategies/holder/Holder.sol";
 
 contract Deploy is Script {
     function run() external {
