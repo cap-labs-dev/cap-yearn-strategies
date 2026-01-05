@@ -13,6 +13,7 @@ contract Deploy is Script {
         address keeper = 0xBF664De63168720b57f1c93581512E9580E3E6f8;
         address sms = 0xc1ab5a9593E6e1662A9a44F84Df4F31Fc8A76B52;
         address claimer = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae;
+        address swapper = 0x0000000000000000000000000000000000000000;
 
         address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         address usdcVault = 0x3Ed6aa32c930253fc990dE58fF882B9186cd0072;
@@ -22,7 +23,8 @@ contract Deploy is Script {
             performanceFeeRecipient,
             keeper,
             sms,
-            claimer
+            claimer,
+            swapper
         );
 
         console.log("Factory deployed at", address(factory));

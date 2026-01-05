@@ -1,168 +1,100 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
-import {UniswapV3Swapper} from "@periphery/swappers/UniswapV3Swapper.sol";
+import {SwapperLib} from "../../utils/SwapperLib.sol";
 import {Base4626Compounder, ERC20, SafeERC20} from "@periphery/Bases/4626Compounder/Base4626Compounder.sol";
 import {IMerklClaimer} from "../../interfaces/merkl/IMerklClaimer.sol";
 
-interface IAuction {
-    function want() external view returns (address);
-    function receiver() external view returns (address);
-    function kick(address _token) external returns (uint256);
-}
-
-contract MorphoCompounder is Base4626Compounder, UniswapV3Swapper {
+/// @title MorphoCompounder
+/// @author kexley, Cap Labs (adapted from Yearn's MorphoCompounder)
+/// @notice Strategy for compounding rewards from Morpho
+contract MorphoCompounder is Base4626Compounder {
     using SafeERC20 for ERC20;
 
-    enum SwapType {
-        NULL,
-        UNISWAP_V3,
-        AUCTION
-    }
-
-    address public auction;
-
-    // Mapping to be set by management for any reward tokens.
-    // This can be used to set different mins for different tokens
-    // or to set to uin256.max if selling a reward token is reverting
-    mapping(address => uint256) public minAmountToSellMapping;
-
-    mapping(address => SwapType) public swapType;
-
-    address[] public allRewardTokens;
-
+    /// @notice Single depositor into this strategy
     address public immutable depositor;
 
+    /// @notice Merkl claimer
     IMerklClaimer public immutable claimer;
 
+    /// @notice Swapper contract
+    address public immutable swapper;
+
+    /// @notice Reward tokens to claim and sell
+    address[] public rewardTokens;
+
+    /// @notice Minimum amount of each reward token to sell
+    mapping(address => uint256) public minAmount;
+
+    /// @notice Constructor for the MorphoCompounder
     constructor(
         address _asset,
         string memory _name,
         address _vault,
         address _depositor,
-        address _claimer
+        address _claimer,
+        address _swapper
     ) Base4626Compounder(_asset, _name, _vault) {
         require(_depositor != address(0), "depositor cannot be address(0)");
         depositor = _depositor;
         claimer = IMerklClaimer(_claimer);
+        swapper = _swapper;
     }
 
-    function addRewardToken(
-        address _token,
-        SwapType _swapType
-    ) external onlyManagement {
+    /// @notice Add a reward token
+    /// @param _token The address of the reward token to add
+    function addRewardToken(address _token) external onlyManagement {
         require(
             _token != address(asset) && _token != address(vault),
             "cannot be a reward token"
         );
-        allRewardTokens.push(_token);
-        swapType[_token] = _swapType;
+        rewardTokens.push(_token);
     }
 
+    /// @notice Remove a reward token
+    /// @param _token The address of the reward token to remove
     function removeRewardToken(address _token) external onlyManagement {
-        address[] memory _allRewardTokens = allRewardTokens;
-        uint256 _length = _allRewardTokens.length;
+        address[] memory _rewardTokens = rewardTokens;
+        uint256 _length = _rewardTokens.length;
 
         for (uint256 i = 0; i < _length; i++) {
-            if (_allRewardTokens[i] == _token) {
-                allRewardTokens[i] = _allRewardTokens[_length - 1];
-                allRewardTokens.pop();
+            if (_rewardTokens[i] == _token) {
+                rewardTokens[i] = _rewardTokens[_length - 1];
+                rewardTokens.pop();
             }
         }
-        delete swapType[_token];
-        delete minAmountToSellMapping[_token];
     }
 
-    function getAllRewardTokens() external view returns (address[] memory) {
-        return allRewardTokens;
+    /// @notice Set the minimum amount of a reward token to sell
+    /// @param _token The address of the reward token to set the minimum amount for
+    /// @param _minAmount The minimum amount of the reward token to sell
+    function setMinAmount(address _token, uint256 _minAmount) external onlyManagement {
+        minAmount[_token] = _minAmount;
     }
 
-    function setAuction(address _auction) external onlyManagement {
-        if (_auction != address(0)) {
-            require(IAuction(_auction).want() == address(asset), "wrong want");
-            require(
-                IAuction(_auction).receiver() == address(this),
-                "wrong receiver"
-            );
-        }
-        auction = _auction;
+    /// @notice Get the reward tokens
+    /// @return rewards The reward tokens
+    function getRewardTokens() external view returns (address[] memory rewards) {
+        return rewardTokens;
     }
 
-    function setUniFees(
-        address _token0,
-        address _token1,
-        uint24 _fee
-    ) external onlyManagement {
-        _setUniFees(_token0, _token1, _fee);
-    }
-
-    /**
-     * @notice Set the swap type for a specific token.
-     * @param _from The address of the token to set the swap type for.
-     * @param _swapType The swap type to set.
-     */
-    function setSwapType(
-        address _from,
-        SwapType _swapType
-    ) external onlyManagement {
-        swapType[_from] = _swapType;
-    }
-
-    /**
-     * @notice Set the `minAmountToSellMapping` for a specific `_token`.
-     * @dev This can be used by management to adjust wether or not the
-     * _claimAndSellRewards() function will attempt to sell a specific
-     * reward token. This can be used if liquidity is to low, amounts
-     * are to low or any other reason that may cause reverts.
-     *
-     * @param _token The address of the token to adjust.
-     * @param _amount Min required amount to sell.
-     */
-    function setMinAmountToSellMapping(
-        address _token,
-        uint256 _amount
-    ) external onlyManagement {
-        minAmountToSellMapping[_token] = _amount;
-    }
-
+    /// @dev Claim and sell rewards
     function _claimAndSellRewards() internal override {
-        address[] memory _allRewardTokens = allRewardTokens;
-        uint256 _length = _allRewardTokens.length;
+        address[] memory _rewardTokens = rewardTokens;
+        uint256 _length = _rewardTokens.length;
 
         for (uint256 i = 0; i < _length; i++) {
-            address token = _allRewardTokens[i];
-            SwapType _swapType = swapType[token];
+            address token = _rewardTokens[i];
             uint256 balance = ERC20(token).balanceOf(address(this));
-
-            if (balance > minAmountToSellMapping[token]) {
-                if (_swapType == SwapType.UNISWAP_V3) {
-                    _swapFrom(token, address(asset), balance, 0);
-                }
+            if (balance > minAmount[token]) {
+                SwapperLib.swap(swapper, token, address(asset), balance);
             }
         }
     }
 
-    function kickAuction(
-        address _token
-    ) external onlyKeepers returns (uint256) {
-        require(swapType[_token] == SwapType.AUCTION, "!auction");
-        return _kickAuction(_token);
-    }
-
-    /**
-     * @dev Kick an auction for a given token.
-     * @param _from The token that was being sold.
-     */
-    function _kickAuction(address _from) internal virtual returns (uint256) {
-        require(
-            _from != address(asset) && _from != address(vault),
-            "cannot kick"
-        );
-        uint256 _balance = ERC20(_from).balanceOf(address(this));
-        ERC20(_from).safeTransfer(auction, _balance);
-        return IAuction(auction).kick(_from);
-    }
-
+    /// @notice Get the available deposit limit for the strategy
+    /// @param _owner The owner of the strategy
+    /// @return . The available deposit limit for the strategy
     function availableDepositLimit(
         address _owner
     ) public view override returns (uint256) {
@@ -170,6 +102,9 @@ contract MorphoCompounder is Base4626Compounder, UniswapV3Swapper {
         return super.availableDepositLimit(_owner);
     }
 
+    /// @notice Get the available withdraw limit for the strategy
+    /// @param _owner The owner of the strategy
+    /// @return . The available withdraw limit for the strategy
     function availableWithdrawLimit(
         address _owner
     ) public view override returns (uint256) {
@@ -177,6 +112,10 @@ contract MorphoCompounder is Base4626Compounder, UniswapV3Swapper {
         return super.availableWithdrawLimit(_owner);
     }
 
+    /// @notice Claim rewards from Merkl
+    /// @param _tokens The tokens to claim rewards for
+    /// @param _amounts The amounts of the tokens to claim rewards for
+    /// @param _proofs The proofs for the tokens to claim rewards for
     function claim(
         address[] calldata _tokens,
         uint256[] calldata _amounts,

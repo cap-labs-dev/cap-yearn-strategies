@@ -14,6 +14,8 @@ contract MorphoCompounderFactory {
 
     address public immutable claimer;
 
+    address public immutable swapper;
+
     address public management;
     address public performanceFeeRecipient;
     address public keeper;
@@ -26,13 +28,15 @@ contract MorphoCompounderFactory {
         address _performanceFeeRecipient,
         address _keeper,
         address _sms,
-        address _claimer
+        address _claimer,
+        address _swapper
     ) {
         management = _management;
         performanceFeeRecipient = _performanceFeeRecipient;
         keeper = _keeper;
         SMS = _sms;
         claimer = _claimer;
+        swapper = _swapper;
     }
 
     /**
@@ -59,7 +63,7 @@ contract MorphoCompounderFactory {
         // We need to use the custom interface with the
         // tokenized strategies setters.
         IStrategyInterface newStrategy = IStrategyInterface(
-            address(new MorphoCompounder(_asset, _name, _vault, _depositor, claimer))
+            address(new MorphoCompounder(_asset, _name, _vault, _depositor, claimer, swapper))
         );
 
         newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
