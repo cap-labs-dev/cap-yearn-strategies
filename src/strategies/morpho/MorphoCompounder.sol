@@ -96,13 +96,14 @@ contract MorphoCompounder is Base4626Compounder {
     }
 
     /// @notice Get the available deposit limit for the strategy
+    /// @dev Morpho V2 vaults have non-compliant ERC4626 max amounts so we cannot call maxDeposit()
     /// @param _owner The owner of the strategy
     /// @return . The available deposit limit for the strategy
     function availableDepositLimit(
         address _owner
     ) public view override returns (uint256) {
         if (_owner != depositor) return 0;
-        return super.availableDepositLimit(_owner);
+        return type(uint256).max;
     }
 
     /// @notice Get the available withdraw limit for the strategy
@@ -113,6 +114,13 @@ contract MorphoCompounder is Base4626Compounder {
     ) public view override returns (uint256) {
         if (_owner != depositor) return 0;
         return super.availableWithdrawLimit(_owner);
+    }
+
+    /// @notice Get the max amount of the vault that can be withdrawn
+    /// @dev Morpho V2 vaults have non-compliant ERC4626 max amounts so we cannot call maxRedeem()
+    /// @return . The max amount of the vault that can be withdrawn
+    function vaultsMaxWithdraw() public view override returns (uint256) {
+        return vault.convertToAssets(balanceOfVault());
     }
 
     /// @notice Claim rewards from Merkl
