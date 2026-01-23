@@ -74,8 +74,9 @@ interface ISwapper {
     event SetOracle(address oracle);
 
     /// @notice Initialize the swapper
+    /// @param _owner Owner of the swapper
     /// @param _oracle Oracle used to calculate the minimum output of a swap
-    function initialize(address _oracle) external;
+    function initialize(address _owner, address _oracle) external;
 
     /// @notice Swap between two tokens with slippage calculated using the oracle
     /// @param _fromToken Address of the source token
