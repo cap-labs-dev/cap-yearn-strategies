@@ -61,6 +61,7 @@ contract MorphoCompounder is Base4626Compounder {
             if (_rewardTokens[i] == _token) {
                 rewardTokens[i] = _rewardTokens[_length - 1];
                 rewardTokens.pop();
+                break;
             }
         }
     }
@@ -90,6 +91,8 @@ contract MorphoCompounder is Base4626Compounder {
                 SwapperLib.swap(swapper, token, address(asset), balance);
             }
         }
+
+        if (!TokenizedStrategy.isShutdown()) _deployFunds(balanceOfAsset());
     }
 
     /// @notice Get the available deposit limit for the strategy
