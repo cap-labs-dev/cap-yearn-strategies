@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.18;
 
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStrategy} from "@tokenized-strategy/BaseStrategy.sol";
+import {ISwapFacility} from "../../interfaces/ISwapFacility.sol";
 
 /// @title RWA Holder
 /// @author kexley, Cap Labs
@@ -42,11 +44,23 @@ contract RWAHolder is BaseStrategy {
     /// @dev The event emitted when the address of the trusted swap executor is set
     event SetExecutor(address executor);
 
+    /// @dev The event emitted when the address of the swap facility is set
+    event SetSwapFacility(address swapFacility);
+
+    /// @dev The event emitted when the address of the RWA token is set
+    event SetRWA(address rwa);
+
     /// @notice Single depositor into this strategy
     address public immutable depositor;
 
     /// @notice The address of the trusted swap executor
     address public executor;
+
+    /// @notice The address of the swap facility
+    address public swapFacility;
+
+    /// @notice The address of the RWA token
+    address public rwa;
 
     /// @notice The maximum amount of profit that can be notified in one day
     uint256 public maxProfit;
@@ -77,26 +91,32 @@ contract RWAHolder is BaseStrategy {
     /// @param _name The name of the strategy
     /// @param _depositor The address of the depositor
     /// @param _executor The address of the trusted swap executor
+    /// @param _swapFacility The address of the swap facility
     constructor(
         address _asset,
         string memory _name,
         address _depositor,
-        address _executor
+        address _executor,
+        address _swapFacility,
+        address _rwa
     ) BaseStrategy(_asset, _name) {
         if (_executor == address(0)) revert ZeroAddress();
         if (_depositor == address(0)) revert ZeroAddress();
         depositor = _depositor;
         executor = _executor;
+        swapFacility = _swapFacility;
+        rwa = _rwa;
         maxProfit = 100_000e6;
         maxLoss = 100_000e6;
 
         emit SetExecutor(_executor);
+        emit SetSwapFacility(_swapFacility);
+        emit SetRWA(_rwa);
         emit SetMaxProfit(100_000e6);
         emit SetMaxLoss(100_000e6);
     }
 
     /// @notice Get the available deposit limit for the strategy
-    /// @dev Morpho V2 vaults have non-compliant ERC4626 max amounts so we cannot call maxDeposit()
     /// @param _owner The owner of the strategy
     /// @return . The available deposit limit for the strategy
     function availableDepositLimit(
@@ -116,9 +136,12 @@ contract RWAHolder is BaseStrategy {
         return asset.balanceOf(address(this));
     }
 
-    /// @dev Left empty as funds cannot be programmatically deployed
+    /// @dev Asset is swapped for RWA tokens
     /// @param _amount The amount of 'asset' deployed
-    function _deployFunds(uint256 _amount) internal override {}
+    function _deployFunds(uint256 _amount) internal override {
+        SafeERC20.forceApprove(asset, address(swapFacility), _amount);
+        ISwapFacility(swapFacility).swap(address(asset), rwa, _amount, address(this));
+    }
 
     /// @dev Left empty as funds cannot be programmatically freed
     /// @param _amount The amount of 'asset' freed
@@ -187,5 +210,13 @@ contract RWAHolder is BaseStrategy {
         if (_executor == address(0)) revert ZeroAddress();
         executor = _executor;
         emit SetExecutor(_executor);
+    }
+
+    /// @dev Sets the address of the swap facility
+    /// @param _swapFacility The new address of the swap facility
+    function setSwapFacility(address _swapFacility) external onlyManagement {
+        if (_swapFacility == address(0)) revert ZeroAddress();
+        swapFacility = _swapFacility;
+        emit SetSwapFacility(_swapFacility);
     }
 }
