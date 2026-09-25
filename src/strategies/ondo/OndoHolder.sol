@@ -3,15 +3,15 @@ pragma solidity 0.8.18;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStrategy} from "@tokenized-strategy/BaseStrategy.sol";
-import {IOndoExchange} from "../../interfaces/IOndoExchange.sol";
+import {IInstantManager} from "../../interfaces/IInstantManager.sol";
 
 /// @title Ondo Holder
 /// @author kexley, Cap Labs
-/// @notice A strategy that swaps the asset to Ondo rOUSG for yield via the Ondo InstantManager.
+/// @notice A strategy that swaps the asset to Ondo rUSDY for yield via the Ondo InstantManager.
 /// @dev Single-depositor strategy. The strategy address itself must be KYC'd on Ondo.
 contract OndoHolder is BaseStrategy {
-    /// @dev Converts USDC (6 decimals) to rOUSG (18 decimals) at a 1:1 dollar peg
-    uint256 internal constant ROUSG_SCALE = 1e12;
+    /// @dev Converts USDC (6 decimals) to rUSDY (18 decimals) at a 1:1 dollar peg
+    uint256 internal constant RUSDY_SCALE = 1e12;
 
     /// @dev The error thrown when the address is zero
     error ZeroAddress();
@@ -25,28 +25,28 @@ contract OndoHolder is BaseStrategy {
     /// @notice The address of the Ondo InstantManager
     address public exchange;
 
-    /// @notice The address of the rOUSG token
-    address public rousg;
+    /// @notice The address of the rUSDY token
+    address public rusdy;
 
     /// @dev Constructor
     /// @param _asset The asset address
     /// @param _name The name of the strategy
     /// @param _depositor The address of the depositor
     /// @param _exchange The address of the InstantManager
-    /// @param _rousg The address of the rOUSG token
+    /// @param _rusdy The address of the rUSDY token
     constructor(
         address _asset,
         string memory _name,
         address _depositor,
         address _exchange,
-        address _rousg
+        address _rusdy
     ) BaseStrategy(_asset, _name) {
         if (_depositor == address(0)) revert ZeroAddress();
         if (_exchange == address(0)) revert ZeroAddress();
-        if (_rousg == address(0)) revert ZeroAddress();
+        if (_rusdy == address(0)) revert ZeroAddress();
         depositor = _depositor;
         exchange = _exchange;
-        rousg = _rousg;
+        rusdy = _rusdy;
     }
 
     /// @notice Get the available deposit limit for the strategy
@@ -69,43 +69,43 @@ contract OndoHolder is BaseStrategy {
         return type(uint256).max;
     }
 
-    /// @dev Asset is subscribed to rOUSG through the InstantManager, minimum is $5k
+    /// @dev Asset is subscribed to rUSDY through the InstantManager
     /// @param _amount The amount of 'asset' deployed
     function _deployFunds(uint256 _amount) internal override {
         SafeERC20.forceApprove(asset, exchange, _amount);
         // Min out of 0: InstantManager already prices via the Ondo oracle and may
         // take a fee / round down.
-        IOndoExchange(exchange).subscribeRebasingOUSG(
+        IInstantManager(exchange).subscribeRebasingUSDY(
             address(asset),
             _amount,
             0
         );
     }
 
-    /// @dev Redeems rOUSG for the requested amount of asset
+    /// @dev Redeems rUSDY for the requested amount of asset
     /// @param _amount The amount of 'asset' freed
     function _freeFunds(uint256 _amount) internal override {
-        uint256 rousgBal = IERC20(rousg).balanceOf(address(this));
+        uint256 rusdyBal = IERC20(rusdy).balanceOf(address(this));
         // Compare in asset decimals so emergencyWithdraw(max) never overflows the 1e12 scale
-        uint256 rousgAmount = _amount >= rousgBal / ROUSG_SCALE
-            ? rousgBal
-            : _amount * ROUSG_SCALE;
-        if (rousgAmount == 0) return;
+        uint256 rusdyAmount = _amount >= rusdyBal / RUSDY_SCALE
+            ? rusdyBal
+            : _amount * RUSDY_SCALE;
+        if (rusdyAmount == 0) return;
 
-        SafeERC20.forceApprove(IERC20(rousg), exchange, rousgAmount);
-        IOndoExchange(exchange).redeemRebasingOUSG(
-            rousgAmount,
+        SafeERC20.forceApprove(IERC20(rusdy), exchange, rusdyAmount);
+        IInstantManager(exchange).redeemRebasingUSDY(
+            rusdyAmount,
             address(asset),
             0
         );
     }
 
-    /// @dev Emergency withdraw just redeems rOUSG
+    /// @dev Emergency withdraw just redeems rUSDY
     function _emergencyWithdraw(uint256 _amount) internal override {
         _freeFunds(_amount);
     }
 
-    /// @dev Returns idle asset plus the USDC-scaled rOUSG balance
+    /// @dev Returns idle asset plus the USDC-scaled rUSDY balance
     function _harvestAndReport() internal view override returns (uint256) {
         return _totalAssetValue();
     }
@@ -118,11 +118,11 @@ contract OndoHolder is BaseStrategy {
         emit SetExchange(_exchange);
     }
 
-    /// @dev Idle USDC + rOUSG valued 1:1 after the 6->18 decimal conversion
+    /// @dev Idle USDC + rUSDY valued 1:1 after the 6->18 decimal conversion
     function _totalAssetValue() internal view returns (uint256) {
         return
             asset.balanceOf(address(this)) +
-            IERC20(rousg).balanceOf(address(this)) /
-            ROUSG_SCALE;
+            IERC20(rusdy).balanceOf(address(this)) /
+            RUSDY_SCALE;
     }
 }
