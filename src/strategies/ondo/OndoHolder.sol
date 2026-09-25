@@ -85,11 +85,14 @@ contract OndoHolder is BaseStrategy {
     /// @dev Redeems rUSDY for the requested amount of asset
     /// @param _amount The amount of 'asset' freed
     function _freeFunds(uint256 _amount) internal override {
-        uint256 rusdyBal = IERC20(rusdy).balanceOf(address(this));
-        // Compare in asset decimals so emergencyWithdraw(max) never overflows the 1e12 scale
-        uint256 rusdyAmount = _amount >= rusdyBal / RUSDY_SCALE
-            ? rusdyBal
-            : _amount * RUSDY_SCALE;
+        if (_amount == 0) return;
+
+        uint256 rusdyAmount = IERC20(rusdy).balanceOf(address(this));
+        if (_amount != type(uint256).max) {
+            if ((_amount + 1) * RUSDY_SCALE <= rusdyAmount) {
+                rusdyAmount = (_amount + 1) * RUSDY_SCALE;
+            }
+        }
         if (rusdyAmount == 0) return;
 
         SafeERC20.forceApprove(IERC20(rusdy), exchange, rusdyAmount);

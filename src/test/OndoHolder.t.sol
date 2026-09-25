@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
+import {IInstantManager} from "../interfaces/IInstantManager.sol";
 import {OndoHolder} from "../strategies/ondo/OndoHolder.sol";
 
 interface IOndoInstantManager {
@@ -207,6 +208,40 @@ contract OndoHolderTest is Test {
         assertEq(strategy.balanceOf(depositor), 0, "shares remain");
     }
 
+    function test_partial_withdraw_allows_zero_loss() public {
+        _deposit(depositAmount);
+        uint256 amount = depositAmount / 2;
+
+        // The three-argument withdraw allows no loss, including one USDC base unit.
+        vm.prank(depositor);
+        strategy.withdraw(amount, depositor, depositor);
+
+        assertEq(asset.balanceOf(depositor), amount, "withdrawal shortfall");
+        assertEq(strategy.totalAssets(), depositAmount - amount, "unexpected loss");
+        assertGt(ERC20(RUSDY).balanceOf(address(holder)), 0, "position fully redeemed");
+    }
+
+    function test_withdraw_caps_rounding_buffer_at_rusdy_balance() public {
+        _deposit(depositAmount);
+        uint256 rusdyBalance = ERC20(RUSDY).balanceOf(address(holder));
+        uint256 amount = rusdyBalance / 1e12;
+        assertGt((amount + 1) * 1e12, rusdyBalance, "buffer fits within balance");
+
+        // When the buffer would exceed the balance, redeem only the balance.
+        vm.expectCall(
+            EXCHANGE,
+            abi.encodeCall(
+                IInstantManager.redeemRebasingUSDY,
+                (rusdyBalance, USDC, 0)
+            )
+        );
+        vm.prank(depositor);
+        strategy.withdraw(amount, depositor, depositor);
+
+        assertEq(asset.balanceOf(depositor), amount, "withdrawal shortfall");
+        assertEq(ERC20(RUSDY).balanceOf(address(holder)), 0, "rUSDY leftover");
+    }
+
     function test_report_accounts_rusdy() public {
         _deposit(depositAmount);
 
@@ -322,6 +357,19 @@ contract OndoHolderTest is Test {
         vm.prank(stranger);
         vm.expectRevert("!management");
         holder.setExchange(next);
+    }
+
+    function test_emergency_withdraw_zero_does_not_redeem() public {
+        _deposit(depositAmount);
+        uint256 rusdyBalance = ERC20(RUSDY).balanceOf(address(holder));
+
+        vm.prank(management);
+        strategy.shutdownStrategy();
+        vm.prank(management);
+        strategy.emergencyWithdraw(0);
+
+        assertEq(ERC20(RUSDY).balanceOf(address(holder)), rusdyBalance, "rUSDY redeemed");
+        assertEq(asset.balanceOf(address(holder)), 0, "unexpected USDC");
     }
 
     function test_emergency_withdraw() public {
